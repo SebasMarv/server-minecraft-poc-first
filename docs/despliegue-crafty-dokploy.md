@@ -3,50 +3,15 @@
 ## Requisitos Previos
 
 - VPS con Dokploy instalado
-- Traefik configurado (viene con Dokploy)
 - Dominio apuntando a la VPS
-- Puertos abiertos: 25565 (TCP), 19132 (UDP)
+- Puertos abiertos en firewall: 25565 (TCP), 19132 (UDP)
 
-## Estructura de Archivos
+## Paso 1: Configurar Traefik en Dokploy
 
-```
-.
-├── docker-compose.yml
-├── .env
-├── traefik/
-│   └── dynamic/
-│       └── crafty.yml
-└── crafty/
-    ├── backups/
-    ├── logs/
-    ├── servers/
-    ├── config/
-    └── import/
-```
+Crafty usa HTTPS interno con certificado auto-firmado. Debes configurar Traefik para aceptarlo.
 
-## Pasos de Instalación
-
-### 1. Configurar Variables de Entorno
-
-Copia el archivo de ejemplo y configura tu dominio:
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-Edita `CRAFTY_DOMAIN` con tu dominio real:
-```
-CRAFTY_DOMAIN=minecraft.tudominio.com
-```
-
-### 2. Configurar Traefik para Crafty
-
-Crafty usa HTTPS internamente con certificado auto-firmado. Necesitas agregar la configuración de `serversTransport` a Traefik.
-
-**Opción A: Si usas Traefik de Dokploy**
-
-Agrega esto a la configuración dinámica de Traefik en Dokploy:
+1. Ve a **Settings → Server → Traefik**
+2. En **Traefik Config** agrega esto al final:
 
 ```yaml
 http:
@@ -55,42 +20,68 @@ http:
       insecureSkipVerify: true
 ```
 
-**Opción B: Si tienes tu propio Traefik**
+3. Guarda los cambios
 
-Copia el archivo `traefik/dynamic/crafty.yml` a tu directorio de configuración dinámica de Traefik.
+## Paso 2: Crear el Compose en Dokploy
 
-### 3. Crear la Red de Traefik (si no existe)
+1. Crea un nuevo **Compose** en Dokploy
+2. Conecta el repositorio de GitHub
+3. Despliega
 
-```bash
-docker network create traefik-public
+## Paso 3: Configurar Dominio
+
+En la sección **Domains** del compose:
+
+| Campo | Valor |
+|-------|-------|
+| Service Name | `crafty` |
+| Host | `tu-dominio.com` |
+| Path | `/` |
+| Container Port | `8443` |
+| HTTPS | ✅ Activado |
+
+**Importante:** En configuración avanzada del dominio, agrega:
+
+```
+serversTransport: crafty-transport
 ```
 
-### 4. Desplegar
+O configura manualmente en Traefik Config:
 
-```bash
-docker compose up -d
+```yaml
+http:
+  routers:
+    crafty-secure:
+      rule: Host(`tu-dominio.com`)
+      service: crafty-service
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    crafty-service:
+      loadBalancer:
+        servers:
+          - url: https://crafty:8443
+        serversTransport: crafty-transport
 ```
 
-### 5. Obtener Credenciales Iniciales
+## Paso 4: Obtener Credenciales
 
-Las credenciales se generan automáticamente en el primer inicio:
+Accede por SSH a la VPS y ejecuta:
 
 ```bash
 docker exec crafty cat /crafty/app/config/default-creds.txt
 ```
 
-O accede al volumen:
-```bash
-cat ./crafty/config/default-creds.txt
-```
-
 ## Acceso
 
-- **Panel Web:** `https://minecraft.tudominio.com`
-- **Servidor Minecraft Java:** `tudominio.com:25565`
-- **Servidor Minecraft Bedrock:** `tudominio.com:19132`
+- **Panel Web:** `https://tu-dominio.com`
+- **Minecraft Java:** `tu-dominio.com:25565`
+- **Minecraft Bedrock:** `tu-dominio.com:19132`
 
-## Puertos Necesarios en Firewall
+## Puertos en Firewall
 
 | Puerto | Protocolo | Uso |
 |--------|-----------|-----|
@@ -102,35 +93,23 @@ cat ./crafty/config/default-creds.txt
 
 ```bash
 # Ver logs
-docker compose logs -f crafty
+docker logs -f crafty
+
+# Ver credenciales
+docker exec crafty cat /crafty/app/config/default-creds.txt
 
 # Reiniciar
-docker compose restart crafty
-
-# Actualizar imagen
-docker compose pull && docker compose up -d
-
-# Backup manual
-docker exec crafty /crafty/backup.sh
+docker restart crafty
 ```
 
-## Notas Importantes
+## Agregar Más Servidores
 
-1. **Primera vez:** Después del primer inicio, accede al panel y cambia la contraseña por defecto.
+Si necesitas más puertos para servidores adicionales, edita el `docker-compose.yml`:
 
-2. **Servidores adicionales:** Si necesitas más puertos para servidores adicionales, agrégalos al `docker-compose.yml`:
-   ```yaml
-   ports:
-     - "25566:25566"  # Segundo servidor
-     - "25567:25567"  # Tercer servidor
-   ```
-
-3. **Backups:** Los backups automáticos se guardan en `./crafty/backups/`. Configura backups externos para mayor seguridad.
-
-4. **Recursos:** Ajusta los límites de memoria según tu VPS:
-   ```yaml
-   deploy:
-     resources:
-       limits:
-         memory: 4G
-   ```
+```yaml
+ports:
+  - "25565:25565"
+  - "25566:25566"  # Segundo servidor
+  - "25567:25567"  # Tercer servidor
+  - "19132:19132/udp"
+```

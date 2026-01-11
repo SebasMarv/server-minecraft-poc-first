@@ -1,7 +1,0 @@
-# Configuración dinámica de Traefik para Crafty Controller
-# Crafty usa HTTPS interno con certificado auto-firmado
-
-http:
-  serversTransports:
-    crafty-transport:
-      insecureSkipVerify: true
