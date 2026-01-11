@@ -1,0 +1,33 @@
+services:
+  crafty:
+    container_name: crafty
+    image: registry.gitlab.com/crafty-controller/crafty-4:latest
+    restart: unless-stopped
+    environment:
+      - TZ=America/Lima
+    ports:
+      # Puertos de Minecraft (TCP/UDP directo, Traefik no los maneja)
+      - "25565:25565"      # Minecraft Java
+      - "19132:19132/udp"  # Minecraft Bedrock
+    volumes:
+      - ./crafty/backups:/crafty/backups
+      - ./crafty/logs:/crafty/logs
+      - ./crafty/servers:/crafty/servers
+      - ./crafty/config:/crafty/app/config
+      - ./crafty/import:/crafty/import
+    labels:
+      # Traefik
+      - "traefik.enable=true"
+      - "traefik.http.routers.crafty.rule=Host(`${CRAFTY_DOMAIN}`)"
+      - "traefik.http.routers.crafty.entrypoints=websecure"
+      - "traefik.http.routers.crafty.tls=true"
+      - "traefik.http.routers.crafty.tls.certresolver=letsencrypt"
+      - "traefik.http.services.crafty.loadbalancer.server.port=8443"
+      - "traefik.http.services.crafty.loadbalancer.server.scheme=https"
+      - "traefik.http.services.crafty.loadbalancer.serversTransport=crafty-transport@file"
+    networks:
+      - traefik-public
+
+networks:
+  traefik-public:
+    external: true
