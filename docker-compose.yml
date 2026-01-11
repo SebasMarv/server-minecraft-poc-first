@@ -26,8 +26,8 @@ services:
       - "traefik.http.services.crafty.loadbalancer.server.scheme=https"
       - "traefik.http.services.crafty.loadbalancer.serversTransport=crafty-transport@file"
     networks:
-      - traefik-public
+      - dokploy-network
 
 networks:
-  traefik-public:
+  dokploy-network:
     external: true
